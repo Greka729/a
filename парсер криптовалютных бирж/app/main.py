@@ -86,6 +86,26 @@ async def root() -> str:
             </div>
           </div>
           <script>
+            const coinbaseSupported = new Set(['BTC','ETH','ADA','XRP','SOL','DOT','DOGE','AVAX','MATIC']);
+            function enforceSourceCompatibility() {
+              const symSel = document.getElementById('symbol');
+              const srcSel = document.getElementById('sourceSel');
+              const err = document.getElementById('error');
+              const sym = symSel.value;
+              const isSupported = coinbaseSupported.has(sym);
+              // Disable Coinbase option dynamically based on symbol
+              for (const opt of srcSel.options) {
+                if (opt.value === 'coinbase') {
+                  opt.disabled = !isSupported;
+                }
+              }
+              // If currently set to coinbase but unsupported, auto-switch to auto and inform user
+              if (srcSel.value === 'coinbase' && !isSupported) {
+                srcSel.value = 'auto';
+                err.textContent = 'Coinbase не поддерживает выбранный символ. Источник переключен на auto.';
+                setTimeout(() => { if (err.textContent.includes('Coinbase')) err.textContent = ''; }, 4000);
+              }
+            }
             function formatUSD(n) {
               const num = Number(n);
               if (!Number.isFinite(num)) return n;
@@ -113,6 +133,10 @@ async def root() -> str:
                 err.textContent = e && e.message ? e.message : 'Request failed';
               }
             }
+            // Hook up change listeners
+            document.getElementById('symbol').addEventListener('change', () => { enforceSourceCompatibility(); load(); });
+            document.getElementById('sourceSel').addEventListener('change', () => { enforceSourceCompatibility(); load(); });
+            enforceSourceCompatibility();
             load();
           </script>
         </body>
@@ -146,6 +170,10 @@ async def get_current_price(symbol: str, source: str = "auto"):
             data = await fetch_from(s)
             return PriceResponse(**data)
         except Exception as e:  # noqa: BLE001
+            # If a specific source was requested (not auto) and it doesn't support the symbol,
+            # return a clear 400 instead of aggregating into a 502.
+            if src != "auto" and isinstance(e, ValueError):
+                raise HTTPException(status_code=400, detail=f"{s}: {e}")
             errors.append(f"{s}: {e}")
             continue
     raise HTTPException(status_code=502, detail="; ".join(errors) or "All sources failed")
