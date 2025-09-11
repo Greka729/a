@@ -1,0 +1,3 @@
+.venv\Scripts\python.exe -m uvicorn app.main:app --reload (В консоль)
+
+ http://localhost:8000/

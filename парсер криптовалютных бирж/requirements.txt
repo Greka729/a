@@ -1,0 +1,17 @@
+fastapi==0.112.2
+uvicorn[standard]==0.30.6
+aiohttp==3.10.5
+pydantic==2.9.2
+pandas==2.2.3
+numpy==2.2.6
+SQLAlchemy==2.0.34
+alembic==1.13.2
+python-dotenv==1.0.1
+requests==2.32.3
+plotly==5.24.1
+matplotlib==3.9.2
+scikit-learn==1.5.2
+statsmodels==0.14.5
+certifi==2024.8.30
+
+
