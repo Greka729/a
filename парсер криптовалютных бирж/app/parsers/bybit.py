@@ -46,17 +46,39 @@ class BybitParser(BaseParser):
         async with session.get(url_linear, timeout=timeout) as resp:
             if resp.status == 200:
                 data = await resp.json()
-                if data.get("result", {}).get("list"):
-                    last = data["result"]["list"][0].get("lastPrice")
-                    if last is not None:
-                        return {"symbol": symbol.upper(), "price": float(last), "source": "bybit", "currency": "USDT"}
+                lst = data.get("result", {}).get("list") or []
+                if lst:
+                    item = lst[0]
+                    # Prefer lastPrice, then markPrice, then mid of bid/ask
+                    price_str = item.get("lastPrice") or item.get("markPrice")
+                    if price_str is None:
+                        bid = item.get("bid1Price") or item.get("bestBidPrice")
+                        ask = item.get("ask1Price") or item.get("bestAskPrice")
+                        if bid is not None and ask is not None:
+                            try:
+                                price_val = (float(bid) + float(ask)) / 2.0
+                                return {"symbol": symbol.upper(), "price": price_val, "source": "bybit", "currency": "USDT"}
+                            except Exception:  # noqa: BLE001
+                                price_str = None
+                    if price_str is not None:
+                        return {"symbol": symbol.upper(), "price": float(price_str), "source": "bybit", "currency": "USDT"}
         # Spot fallback
         url_spot = f"{self.base_url}/v5/market/tickers?category=spot&symbol={pair}"
         async with session.get(url_spot, timeout=timeout) as resp:
             resp.raise_for_status()
             data = await resp.json()
-            last = data.get("result", {}).get("list", [{}])[0].get("lastPrice")
-            return {"symbol": symbol.upper(), "price": float(last), "source": "bybit", "currency": "USDT"}
+            lst = data.get("result", {}).get("list") or []
+            if not lst:
+                raise ValueError("Unexpected Bybit response")
+            item = lst[0]
+            price_str = item.get("lastPrice") or item.get("markPrice")
+            if price_str is None:
+                bid = item.get("bid1Price") or item.get("bestBidPrice")
+                ask = item.get("ask1Price") or item.get("bestAskPrice")
+                if bid is not None and ask is not None:
+                    return {"symbol": symbol.upper(), "price": (float(bid) + float(ask)) / 2.0, "source": "bybit", "currency": "USDT"}
+                raise ValueError("Unexpected Bybit response")
+            return {"symbol": symbol.upper(), "price": float(price_str), "source": "bybit", "currency": "USDT"}
 
     async def get_historical_data(self, symbol: str, days: int) -> List[Dict]:
         return []

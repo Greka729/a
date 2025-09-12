@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 import asyncio
 
 from app.parsers import BinanceParser, BybitParser, BitgetParser, CoinbaseParser
@@ -29,6 +29,22 @@ class IndicatorResponse(BaseModel):
     indicators: dict
 
 _parsers: dict[str, object] = {}
+
+class ExchangePrice(BaseModel):
+    source: str
+    price: float
+    currency: Optional[str] = None
+
+class DiffSummary(BaseModel):
+    symbol: str
+    prices: List[ExchangePrice]
+    min_price: float
+    min_source: str
+    max_price: float
+    max_source: str
+    spread_abs: float
+    spread_pct: float
+    pairwise: Dict[str, Dict[str, Any]]
 
 @app.on_event("startup")
 async def on_startup() -> None:
@@ -70,6 +86,11 @@ async def root() -> str:
             <div class=\"muted\">Source: <span id=\"source\">—</span></div>
             <div class=\"muted\">Currency: <span id=\"currency\">USD</span></div>
             <div class=\"muted\" id=\"error\" style=\"color:#dc2626;margin-top:6px\"></div>
+            <div class=\"label\" style=\"margin-top:16px\">Spreads across exchanges</div>
+            <div id=\"spreads\" class=\"muted\">—</div>
+            <div style=\"margin-top:8px\">
+              <canvas id=\"spreadChart\" width=\"520\" height=\"220\" style=\"border:1px solid #e5e7eb;border-radius:8px;background:#fff\"></canvas>
+            </div>
             <div style=\"margin-top:12px\">
               <button onclick=\"load()\">Reload</button>
               <label>Symbol:
@@ -97,13 +118,21 @@ async def root() -> str:
               for (const opt of srcSel.options) {
                 if (opt.value === 'coinbase') {
                   opt.disabled = !isSupported;
+                } else if (opt.value === 'bybit' || opt.value === 'bitget') {
+                  opt.disabled = (sym === 'MATIC');
+                } else {
+                  opt.disabled = false;
                 }
               }
-              // If currently set to coinbase but unsupported, auto-switch to auto and inform user
-              if (srcSel.value === 'coinbase' && !isSupported) {
+              const currentOption = Array.from(srcSel.options).find(o => o.value === srcSel.value);
+              if (currentOption && currentOption.disabled) {
                 srcSel.value = 'auto';
-                err.textContent = 'Coinbase не поддерживает выбранный символ. Источник переключен на auto.';
-                setTimeout(() => { if (err.textContent.includes('Coinbase')) err.textContent = ''; }, 4000);
+                if (!isSupported && currentOption.value === 'coinbase') {
+                  err.textContent = 'Coinbase не поддерживает выбранный символ. Источник переключен на auto.';
+                } else if (sym === 'MATIC' && (currentOption.value === 'bybit' || currentOption.value === 'bitget')) {
+                  err.textContent = 'Bybit и Bitget отключены для MATIC. Источник переключен на auto.';
+                }
+                setTimeout(() => { err.textContent = ''; }, 4000);
               }
             }
             function formatUSD(n) {
@@ -126,12 +155,115 @@ async def root() -> str:
                 document.getElementById('value').textContent = formatUSD(data.price);
                 document.getElementById('source').textContent = data.source || '—';
                 document.getElementById('currency').textContent = 'USD';
+                // Load spreads in parallel (best-effort)
+                loadSpreads(sym);
               } catch (e) {
                 document.getElementById('value').textContent = 'Error';
                 document.getElementById('source').textContent = '—';
                 document.getElementById('currency').textContent = 'USD';
                 err.textContent = e && e.message ? e.message : 'Request failed';
               }
+            }
+            async function loadSpreads(sym) {
+              const el = document.getElementById('spreads');
+              el.textContent = 'Loading…';
+              try {
+                const res = await fetch(`/api/crypto/${sym}/diffs`);
+                if (!res.ok) {
+                  el.textContent = '—';
+                  drawSpreadChart([]);
+                  return;
+                }
+                const d = await res.json();
+                const parts = [];
+                parts.push(`Min: ${d.min_source} ${formatUSD(d.min_price)}`);
+                parts.push(`Max: ${d.max_source} ${formatUSD(d.max_price)}`);
+                parts.push(`Spread: ${formatUSD(d.spread_abs)} (${d.spread_pct.toFixed(3)}%)`);
+                el.textContent = parts.join('  |  ');
+                drawSpreadChart(d.prices || []);
+              } catch (_e) {
+                el.textContent = '—';
+                drawSpreadChart([]);
+              }
+            }
+            function drawSpreadChart(prices) {
+              const canvas = document.getElementById('spreadChart');
+              if (!canvas) return;
+              const ctx = canvas.getContext('2d');
+              // Clear
+              ctx.clearRect(0, 0, canvas.width, canvas.height);
+              // If no data
+              if (!Array.isArray(prices) || prices.length === 0) {
+                ctx.fillStyle = '#9ca3af';
+                ctx.font = '12px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif';
+                ctx.fillText('Нет данных для графика', 16, 24);
+                return;
+              }
+              const padding = { top: 16, right: 16, bottom: 36, left: 48 };
+              const innerW = canvas.width - padding.left - padding.right;
+              const innerH = canvas.height - padding.top - padding.bottom;
+              // Compute min/max
+              const values = prices.map(p => Number(p.price)).filter(n => Number.isFinite(n));
+              const minV = Math.min(...values);
+              const maxV = Math.max(...values);
+              const span = Math.max(1e-9, maxV - minV);
+              // Axes
+              ctx.strokeStyle = '#e5e7eb';
+              ctx.lineWidth = 1;
+              // y-axis
+              ctx.beginPath();
+              ctx.moveTo(padding.left, padding.top);
+              ctx.lineTo(padding.left, padding.top + innerH);
+              ctx.stroke();
+              // x-axis
+              ctx.beginPath();
+              ctx.moveTo(padding.left, padding.top + innerH);
+              ctx.lineTo(padding.left + innerW, padding.top + innerH);
+              ctx.stroke();
+              // Y ticks (4)
+              ctx.fillStyle = '#6b7280';
+              ctx.font = '11px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif';
+              const ticks = 4;
+              for (let i = 0; i <= ticks; i++) {
+                const t = i / ticks;
+                const y = padding.top + innerH - t * innerH;
+                ctx.strokeStyle = '#f3f4f6';
+                ctx.beginPath();
+                ctx.moveTo(padding.left, y);
+                ctx.lineTo(padding.left + innerW, y);
+                ctx.stroke();
+                const val = minV + t * span;
+                ctx.fillStyle = '#6b7280';
+                ctx.fillText(formatUSD(val), 6, y - 2);
+              }
+              // Bars
+              const n = prices.length;
+              const barGap = Math.min(18, innerW / Math.max(1, n) * 0.25);
+              const barW = Math.max(8, (innerW / n) - barGap);
+              const baseY = padding.top + innerH;
+              const colors = ['#60a5fa','#34d399','#f472b6','#fbbf24','#a78bfa','#4ade80','#f97316','#22d3ee'];
+              prices.forEach((p, idx) => {
+                const val = Number(p.price);
+                const t = (val - minV) / span;
+                const h = t * innerH;
+                const x = padding.left + idx * (barW + barGap) + barGap * 0.5;
+                const y = baseY - h;
+                ctx.fillStyle = colors[idx % colors.length];
+                ctx.fillRect(x, y, barW, h);
+                // label
+                ctx.fillStyle = '#111827';
+                ctx.font = '11px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif';
+                const label = (p.source || '').toUpperCase();
+                const textW = ctx.measureText(label).width;
+                const tx = x + (barW - textW) / 2;
+                ctx.fillText(label, tx, baseY + 14);
+                // value on top
+                ctx.fillStyle = '#374151';
+                const valText = formatUSD(val);
+                const vtW = ctx.measureText(valText).width;
+                const vtx = x + (barW - vtW) / 2;
+                ctx.fillText(valText, vtx, y - 4);
+              });
             }
             // Hook up change listeners
             document.getElementById('symbol').addEventListener('change', () => { enforceSourceCompatibility(); load(); });
@@ -202,6 +334,71 @@ async def get_indicators(symbol: str, window: int = 14):
 @app.get("/api/crypto/correlations")
 async def get_correlations(symbols: Optional[List[str]] = None):
     return {"correlations": {}}
+
+@app.get("/api/crypto/{symbol}/diffs", response_model=DiffSummary)
+async def get_exchange_differences(symbol: str):
+    symbol = symbol.upper()
+    if symbol not in SUPPORTED_SYMBOLS:
+        raise HTTPException(status_code=400, detail="Unsupported symbol")
+
+    async def fetch_from(src_name: str):
+        parser = _parsers.get(src_name)
+        if not parser:
+            raise HTTPException(status_code=503, detail="Parser not ready")
+        return await parser.get_current_price(symbol)
+
+    sources_order = [s for s in ["binance", "bybit", "bitget", "coinbase"] if s in _parsers]
+    results = await asyncio.gather(*[fetch_from(s) for s in sources_order], return_exceptions=True)
+
+    prices: List[ExchangePrice] = []
+    for src, res in zip(sources_order, results):
+        if isinstance(res, Exception):
+            # skip failed source
+            continue
+        try:
+            # Normalize to float and treat USD ~= USDT for spread purposes
+            price = float(res.get("price"))
+            curr = res.get("currency")
+            prices.append(ExchangePrice(source=src, price=price, currency=curr))
+        except Exception:  # noqa: BLE001
+            continue
+
+    if len(prices) < 2:
+        raise HTTPException(status_code=502, detail="Not enough exchange data to compute differences")
+
+    min_entry = min(prices, key=lambda p: p.price)
+    max_entry = max(prices, key=lambda p: p.price)
+    spread_abs = max_entry.price - min_entry.price
+    spread_pct = (spread_abs / min_entry.price * 100.0) if min_entry.price else 0.0
+
+    # Pairwise matrix: key "srcA-srcB"
+    pairwise: Dict[str, Dict[str, Any]] = {}
+    for i in range(len(prices)):
+        for j in range(i + 1, len(prices)):
+            a = prices[i]
+            b = prices[j]
+            key = f"{a.source}-{b.source}"
+            diff_abs = abs(a.price - b.price)
+            base = min(a.price, b.price)
+            diff_pct = (diff_abs / base * 100.0) if base else 0.0
+            pairwise[key] = {
+                "a": {"source": a.source, "price": a.price},
+                "b": {"source": b.source, "price": b.price},
+                "diff_abs": diff_abs,
+                "diff_pct": diff_pct,
+            }
+
+    return DiffSummary(
+        symbol=symbol,
+        prices=prices,
+        min_price=min_entry.price,
+        min_source=min_entry.source,
+        max_price=max_entry.price,
+        max_source=max_entry.source,
+        spread_abs=spread_abs,
+        spread_pct=spread_pct,
+        pairwise=pairwise,
+    )
 
 if __name__ == "__main__":
     import uvicorn
