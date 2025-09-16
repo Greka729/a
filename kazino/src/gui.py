@@ -44,7 +44,7 @@ class CasinoApp(tk.Tk):
         btn_frame.pack(pady=8)
 
         tk.Button(btn_frame, text="Рулетка", width=16, command=self.open_roulette_window).grid(row=0, column=0, padx=6, pady=6)
-        tk.Button(btn_frame, text="Кости", width=16, command=self.play_dice).grid(row=0, column=1, padx=6, pady=6)
+        tk.Button(btn_frame, text="Кости", width=16, command=self.open_dice_window).grid(row=0, column=1, padx=6, pady=6)
         tk.Button(btn_frame, text="Блэкджек", width=16, command=self.open_blackjack_window).grid(row=1, column=0, padx=6, pady=6)
         tk.Button(btn_frame, text="Пополнить", width=16, command=self.top_up).grid(row=1, column=1, padx=6, pady=6)
 
@@ -93,6 +93,9 @@ class CasinoApp(tk.Tk):
             return
         self.refresh_balance()
         messagebox.showinfo("Результат", f"Выпало: {rolled}. Выплата x{multiplier}. Баланс: {new_balance}")
+
+    def open_dice_window(self) -> None:
+        DiceWindow(self)
 
     def play_blackjack(self) -> None:
         amount = self.ask_bet(min_bet=10)
@@ -271,13 +274,15 @@ class RouletteWindow(tk.Toplevel):
         if self.app.balance.get_balance() < amount:
             messagebox.showwarning("Недостаточно средств", "Недостаточно средств для этой ставки")
             return
-        if bet_type not in {"color", "number"}:
-            messagebox.showwarning("Ошибка", "Тип ставки: color или number")
+        valid_types = {"color", "number", "even_odd", "low_high", "dozen", "column"}
+        if bet_type not in valid_types:
+            messagebox.showwarning("Ошибка", "Неверный тип ставки")
             return
-        if bet_type == "color" and selection not in {"red", "black"}:
-            messagebox.showwarning("Ошибка", "Для color введите red или black")
-            return
-        if bet_type == "number":
+        if bet_type == "color":
+            if selection not in {"red", "black"}:
+                messagebox.showwarning("Ошибка", "Для color введите red или black")
+                return
+        elif bet_type == "number":
             try:
                 num_val = int(selection)
             except ValueError:
@@ -285,6 +290,22 @@ class RouletteWindow(tk.Toplevel):
                 return
             if not (0 <= num_val <= 36):
                 messagebox.showwarning("Ошибка", "Число должно быть 0-36")
+                return
+        elif bet_type == "even_odd":
+            if selection not in {"even", "odd"}:
+                messagebox.showwarning("Ошибка", "Для even_odd введите even или odd")
+                return
+        elif bet_type == "low_high":
+            if selection not in {"low", "high"}:
+                messagebox.showwarning("Ошибка", "Для low_high введите low или high")
+                return
+        elif bet_type == "dozen":
+            if selection not in {"1st", "2nd", "3rd", "first", "second", "third"}:
+                messagebox.showwarning("Ошибка", "Для dozen введите 1st/2nd/3rd или first/second/third")
+                return
+        elif bet_type == "column":
+            if selection not in {"col1", "col2", "col3"}:
+                messagebox.showwarning("Ошибка", "Для column введите col1, col2 или col3")
                 return
 
         outcome_num, outcome_col = spin_wheel()
@@ -361,6 +382,180 @@ class RouletteWindow(tk.Toplevel):
 
         toggle(blinks)
 
+
+class DiceWindow(tk.Toplevel):
+    CANVAS_W = 200
+    CANVAS_H = 180
+
+    def __init__(self, app: CasinoApp) -> None:
+        super().__init__(app)
+        self.app = app
+        self.title("Кости")
+        self.resizable(False, False)
+
+        self.animating = False
+        self.animation_job = None
+
+        self.total_rolls = 0
+        self.wins = 0
+        self.losses = 0
+        self.draws = 0  # для совместимости со статистикой
+
+        container = tk.Frame(self)
+        container.pack(padx=10, pady=10)
+
+        left = tk.Frame(container)
+        left.grid(row=0, column=0, rowspan=6, padx=(0, 12))
+        right = tk.Frame(container)
+        right.grid(row=0, column=1, sticky="nw")
+
+        # Canvas with single die
+        self.canvas = tk.Canvas(left, width=self.CANVAS_W, height=self.CANVAS_H, bg="#f8f9fb", highlightthickness=0)
+        self.canvas.pack()
+
+        # Controls
+        self.balance_var = tk.StringVar(value=f"Баланс: {self.app.balance.get_balance()}")
+        tk.Label(right, textvariable=self.balance_var, font=("Segoe UI", 11, "bold")).grid(row=0, column=0, columnspan=2, sticky="w")
+
+        tk.Label(right, text="Ставка:").grid(row=1, column=0, sticky="w", pady=(6, 0))
+        self.bet_entry = tk.Entry(right, width=10)
+        self.bet_entry.insert(0, "10")
+        self.bet_entry.grid(row=1, column=1, sticky="w", pady=(6, 0))
+
+        tk.Label(right, text="Ваше число:").grid(row=2, column=0, sticky="w", pady=(6, 0))
+        self.guess_var = tk.StringVar(value="1")
+        tk.OptionMenu(right, self.guess_var, "1", "2", "3", "4", "5", "6").grid(row=2, column=1, sticky="w", pady=(6, 0))
+
+        self.roll_btn = tk.Button(right, text="Бросить кубики", command=self.on_roll)
+        self.roll_btn.grid(row=3, column=0, columnspan=2, sticky="we", pady=(10, 0))
+
+        self.new_btn = tk.Button(right, text="Новая игра", command=self.on_new_game)
+        self.new_btn.grid(row=4, column=0, columnspan=2, sticky="we", pady=(6, 0))
+
+        self.result_var = tk.StringVar(value="Готов к броску")
+        tk.Label(right, textvariable=self.result_var, wraplength=240, justify="left").grid(row=5, column=0, columnspan=2, sticky="w", pady=(8, 0))
+
+        # Stats
+        stats = tk.Frame(right)
+        stats.grid(row=6, column=0, columnspan=2, sticky="we", pady=(10, 0))
+        self.stats_var = tk.StringVar()
+        tk.Label(stats, textvariable=self.stats_var, font=("Segoe UI", 10)).pack(anchor="w")
+        self._update_stats()
+
+        # History
+        tk.Label(container, text="История:").grid(row=6, column=0, columnspan=2, sticky="w", pady=(8, 0))
+        self.history_list = tk.Listbox(container, height=6, width=56)
+        self.history_list.grid(row=7, column=0, columnspan=2, sticky="we")
+
+        # Initial die
+        self._draw_die(1)
+
+    def _update_stats(self) -> None:
+        self.stats_var.set(f"Бросков: {self.total_rolls} | Победы: {self.wins} | Ничьи: {self.draws} | Поражения: {self.losses}")
+
+    def _draw_die(self, face: int) -> None:
+        self.canvas.delete("all")
+        # Die square centered
+        size = 120
+        x = (self.CANVAS_W - size) // 2
+        y = (self.CANVAS_H - size) // 2
+        self._draw_single_die(x, y, size, face)
+
+    def _draw_single_die(self, x: int, y: int, size: int, face: int) -> None:
+        r = 16
+        self.canvas.create_rectangle(x, y, x + size, y + size, fill="#ffffff", outline="#222", width=3)
+        # pips positions grid 3x3
+        cx = [x + size * 0.25, x + size * 0.5, x + size * 0.75]
+        cy = [y + size * 0.25, y + size * 0.5, y + size * 0.75]
+        def pip(ix: int, iy: int) -> None:
+            self.canvas.create_oval(cx[ix]-r/2, cy[iy]-r/2, cx[ix]+r/2, cy[iy]+r/2, fill="#111", outline="")
+        mapping = {
+            1: [(1,1)],
+            2: [(0,0),(2,2)],
+            3: [(0,0),(1,1),(2,2)],
+            4: [(0,0),(0,2),(2,0),(2,2)],
+            5: [(0,0),(0,2),(1,1),(2,0),(2,2)],
+            6: [(0,0),(0,1),(0,2),(2,0),(2,1),(2,2)],
+        }
+        for ix, iy in mapping.get(int(face), []):
+            pip(ix, iy)
+
+    def on_new_game(self) -> None:
+        if self.animating and self.animation_job is not None:
+            self.after_cancel(self.animation_job)
+            self.animating = False
+        self.total_rolls = 0
+        self.wins = 0
+        self.losses = 0
+        self.draws = 0
+        self.history_list.delete(0, tk.END)
+        self.result_var.set("Новая игра. Сделайте ставку и бросьте кубики")
+        self._update_stats()
+        self._draw_die(1)
+
+    def on_roll(self) -> None:
+        if self.animating:
+            return
+        # Read and validate bet
+        try:
+            amount = int(self.bet_entry.get().strip())
+        except ValueError:
+            messagebox.showwarning("Ошибка", "Введите корректную сумму ставки")
+            return
+        if amount <= 0:
+            messagebox.showwarning("Ошибка", "Ставка должна быть положительной")
+            return
+        if self.app.balance.get_balance() < amount:
+            messagebox.showwarning("Недостаточно средств", "Недостаточно средств для ставки")
+            return
+        # Guess
+        try:
+            guess = int(self.guess_var.get())
+        except ValueError:
+            guess = 1
+
+        # Start animation
+        self.roll_btn.config(state="disabled")
+        self.animating = True
+
+        frames = 18
+        delay_ms = 40
+
+        def animate(i: int = 0) -> None:
+            import random
+            if i >= frames:
+                # final outcome
+                outcome = roll_dice()
+                self._draw_die(outcome)
+                multiplier = resolve_guess(int(guess), outcome)
+                try:
+                    new_balance = self.app.balance.apply_bet_result(int(amount), float(multiplier))
+                except Exception as e:  # noqa: BLE001
+                    messagebox.showerror("Ошибка", str(e))
+                    self.roll_btn.config(state="normal")
+                    self.animating = False
+                    return
+                self.app.refresh_balance()
+                self.balance_var.set(f"Баланс: {new_balance}")
+                self.total_rolls += 1
+                if multiplier > 1.0:
+                    self.wins += 1
+                elif multiplier == 1.0:
+                    self.draws += 1
+                else:
+                    self.losses += 1
+                self._update_stats()
+                self.result_var.set(f"Выпало: {outcome}. Вы выбрали {guess}. Выплата x{multiplier}.")
+                self.history_list.insert(0, f"{outcome} | выбор {guess} | x{multiplier}")
+                self.roll_btn.config(state="normal")
+                self.animating = False
+                return
+            # intermediate random face
+            face = random.randint(1, 6)
+            self._draw_die(face)
+            self.animation_job = self.after(delay_ms, lambda: animate(i + 1))
+
+        animate()
 
 class BlackjackWindow(tk.Toplevel):
     CANVAS_W = 560
