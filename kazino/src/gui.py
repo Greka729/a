@@ -195,8 +195,13 @@ class RouletteWindow(tk.Toplevel):
         self.target_rotation = 0.0
         self._highlight_job = None
 
-        # Number order: 0..36 (упрощённо)
-        self.numbers = list(range(37))
+        # Number order: authentic European wheel sequence (clockwise), starting at 0 at top
+        # Reference: 0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23, 10, 5, 24, 16, 33, 1, 20, 14, 31, 9, 22, 18, 29, 7, 28, 12, 35, 3, 26
+        self.numbers = [
+            0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8,
+            23, 10, 5, 24, 16, 33, 1, 20, 14, 31, 9, 22, 18, 29, 7, 28, 12,
+            35, 3, 26,
+        ]
         self.draw_wheel()
         self.draw_pointer()
 
@@ -240,7 +245,13 @@ class RouletteWindow(tk.Toplevel):
     def _sector_color(self, number: int) -> str:
         if number == 0:
             return "green"
-        return "red" if number % 2 == 1 else "black"
+        red_numbers = {
+            1, 3, 5, 7, 9,
+            12, 14, 16, 18,
+            19, 21, 23, 25, 27,
+            30, 32, 34, 36,
+        }
+        return "red" if number in red_numbers else "black"
 
     def on_spin_click(self) -> None:
         if self.animating:
@@ -279,7 +290,8 @@ class RouletteWindow(tk.Toplevel):
         outcome_num, outcome_col = spin_wheel()
         target_idx = self.numbers.index(outcome_num)
         sector_center = target_idx * self.sector_deg + self.sector_deg / 2
-        final_rotation = (-sector_center) % 360
+        # Align sector center to 90 degrees (top), since Tkinter's 0° is at 3 o'clock and increases CCW
+        final_rotation = (90 - sector_center) % 360
         self.target_rotation = final_rotation + 360 * 6
         self.spin_button.config(state="disabled")
         self.animating = True

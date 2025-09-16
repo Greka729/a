@@ -9,8 +9,14 @@ def spin_wheel() -> Tuple[int, Color]:
     if number == 0:
         color: Color = "green"
     else:
-        # European wheel parity-based coloring (simplified)
-        color = "red" if number % 2 == 1 else "black"
+        # True European roulette color mapping
+        red_numbers = {
+            1, 3, 5, 7, 9,
+            12, 14, 16, 18,
+            19, 21, 23, 25, 27,
+            30, 32, 34, 36,
+        }
+        color = "red" if number in red_numbers else "black"
     return number, color
 
 
