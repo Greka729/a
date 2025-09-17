@@ -340,12 +340,13 @@ class RouletteScene(Scene):
         # selection picker (updated on type change)
         self.sel_picker: OptionPicker | NumberPicker = OptionPicker(pygame.Rect(400, 80, 220, 36), ["red", "black"]) 
         self._update_selection_widget()
-        self.spin_button = Button("Крутить", pygame.Rect(540, 80, 120, 36), self._on_spin)
-        self.back_button = Button("Назад", pygame.Rect(w - 140, 20, 120, 36), lambda: app.go("menu"))
+        self.spin_button = Button("Крутить", pygame.Rect(620, 80, 120, 36), self._on_spin)
+        self.back_button = Button("Назад", pygame.Rect(w - 100, 20, 120, 36), lambda: app.go("menu"))
         self.msg: str = ""
         self.animating = False
         self.rotation = 0.0
         self.target_rotation = 0.0
+        self._pending_outcome = None
         self.numbers = [
             0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8,
             23, 10, 5, 24, 16, 33, 1, 20, 14, 31, 9, 22, 18, 29, 7, 28, 12,
@@ -399,9 +400,12 @@ class RouletteScene(Scene):
         self.sel_picker.draw(screen, self.ui_font, label="Выбор")
         self.spin_button.draw(screen, self.ui_font)
         self.back_button.draw(screen, self.ui_font)
-        self._draw_wheel(screen, (180, 260), 120)
+        rect = screen.get_rect()
+        center = (rect.centerx, rect.centery + 40)
+        radius = max(120, min(180, rect.h // 2 - 40, rect.w // 2 - 40))
+        self._draw_wheel(screen, center, radius)
         if self.msg:
-            draw_text(screen, self.msg, (40, 320), self.ui_font, color=(50, 60, 70))
+            draw_text(screen, self.msg, (40, screen.get_height() - 40), self.ui_font, color=(50, 60, 70))
 
     def handle(self, event: pygame.event.Event) -> None:
         self.bet_input.handle(event)
@@ -413,18 +417,61 @@ class RouletteScene(Scene):
         self.sel_picker.handle(event)
         self.spin_button.handle(event)
         self.back_button.handle(event)
+        
+        # Handle roulette wheel animation
         if event.type == pygame.USEREVENT + 2 and self.animating:
-            # decelerating rotation
-            current = self.rotation % 360
-            remaining = (self.target_rotation - current) % 360
-            if remaining < 1.5:
-                pygame.time.set_timer(pygame.USEREVENT + 2, 0)
-                self.rotation = self.target_rotation % 360
-                self.animating = False
-                # finalize handled at start
-            else:
-                delta = max(3.5, remaining * 0.12)
-                self.rotation = (self.rotation + delta) % 360
+            self._update_rotation()
+
+    def _update_rotation(self) -> None:
+        """Update wheel rotation during animation"""
+        if not self.animating:
+            return
+            
+        # Calculate remaining rotation
+        current = self.rotation % 360
+        target = self.target_rotation % 360
+        
+        # Handle wrap-around case
+        if target < current:
+            remaining = (360 - current) + target
+        else:
+            remaining = target - current
+            
+        # Stop if close enough to target
+        if remaining < 1.0:
+            pygame.time.set_timer(pygame.USEREVENT + 2, 0)
+            self.rotation = self.target_rotation % 360
+            self.animating = False
+            self._finalize_result()
+            return
+            
+        # Decelerate as we approach target
+        delta = max(1.0, remaining * 0.15)
+        self.rotation = (self.rotation + delta) % 360
+
+    def _finalize_result(self) -> None:
+        """Finalize the roulette result after animation completes"""
+        if self._pending_outcome is None:
+            return
+            
+        outcome_num, outcome_col, bet_type, selection, bet = self._pending_outcome
+        self._pending_outcome = None
+        
+        # Determine color for the outcome
+        if outcome_num == 0:
+            color = "green"
+        else:
+            red_numbers = {1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36}
+            color = "red" if outcome_num in red_numbers else "black"
+        
+        mult = roulette_resolve(bet_type, selection, outcome_num, color)
+        try:
+            new_balance = self.app.balance.apply_bet_result(bet, mult)
+        except Exception as e:  # noqa: BLE001
+            self.msg = f"Ошибка: {e}"
+            return
+            
+        self.msg = f"Выпало: {outcome_num} ({color}). Выплата x{mult}. Баланс: {new_balance}"
 
     def _on_spin(self) -> None:
         if self.animating:
@@ -441,27 +488,21 @@ class RouletteScene(Scene):
             return
 
         outcome_num, outcome_col = spin_wheel()
-        # compute target rotation to align result at top (90 degrees reference)
+        
+        # Store the outcome for finalization
+        self._pending_outcome = (outcome_num, outcome_col, bet_type, selection, bet)
+        
+        # Compute target rotation to align result at top (90 degrees reference)
         sector_deg = 360 / len(self.numbers)
         idx = self.numbers.index(outcome_num)
         sector_center = idx * sector_deg + sector_deg / 2
-        final_rotation = (90 - sector_center) % 360
-        self.target_rotation = final_rotation + 360 * 6
+        # Align sector center to the top pointer (-90°). 270° == -90° mod 360
+        final_rotation = (270 - sector_center) % 360
+        self.target_rotation = final_rotation + 360 * 6  # Add multiple rotations for effect
         self.animating = True
+        
+        # Start animation timer
         pygame.time.set_timer(pygame.USEREVENT + 2, 20)
-
-        def finalize() -> None:
-            mult = roulette_resolve(bet_type, selection, outcome_num, "green" if outcome_num == 0 else ("red" if outcome_num in {1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36} else "black"))
-            try:
-                new_balance = self.app.balance.apply_bet_result(bet, mult)
-            except Exception as e:  # noqa: BLE001
-                self.msg = f"Ошибка: {e}"
-                return
-            self.msg = f"Выпало: {outcome_num}. Выплата x{mult}. Баланс: {new_balance}"
-
-        # schedule finalize after animation duration
-        pygame.time.set_timer(pygame.USEREVENT + 3, 20 * 100, loops=1)
-        self.app.register_timer_handler(pygame.USEREVENT + 3, lambda _: finalize())
 
     def _update_selection_widget(self) -> None:
         # keep current selection when possible; otherwise reset
