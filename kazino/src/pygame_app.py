@@ -16,11 +16,15 @@ try:
     from src.games.dice import roll_dice, resolve_guess
     from src.games.roulette import spin_wheel, resolve_bet as roulette_resolve
     from src.games.blackjack import create_deck, hand_value
+    from src.games.slot_game_manager import SlotGameManager
+    from src.games.slot_gui import SlotMachineGUI
 except ModuleNotFoundError:
     from balance import BalanceManager  # type: ignore
     from games.dice import roll_dice, resolve_guess  # type: ignore
     from games.roulette import spin_wheel, resolve_bet as roulette_resolve  # type: ignore
     from games.blackjack import create_deck, hand_value  # type: ignore
+    from games.slot_game_manager import SlotGameManager  # type: ignore
+    from games.slot_gui import SlotMachineGUI  # type: ignore
 
 
 WHITE = (255, 255, 255)
@@ -89,7 +93,7 @@ class TextInput:
                 if len(self.text) < 18:
                     ch = event.unicode
                     # Basic filter to visible ascii
-                    if 32 <= ord(ch) <= 126:
+                    if ch and 32 <= ord(ch) <= 126:
                         self.text += ch
 
     def get_int(self, default: int, min_value: Optional[int] = None, max_value: Optional[int] = None) -> Optional[int]:
@@ -201,8 +205,9 @@ class MenuScene(Scene):
             Button("Кости", pygame.Rect(cx - buttons_w // 2, y, buttons_w, 48), lambda: app.go("dice")),
             Button("Рулетка", pygame.Rect(cx - buttons_w // 2, y + 62, buttons_w, 48), lambda: app.go("roulette")),
             Button("Блэкджек", pygame.Rect(cx - buttons_w // 2, y + 124, buttons_w, 48), lambda: app.go("blackjack")),
+            Button("Слот-машина", pygame.Rect(cx - buttons_w // 2, y + 186, buttons_w, 48), lambda: app.go("slot")),
         ]
-        self.topup_button = Button("Пополнить +100", pygame.Rect(cx - buttons_w // 2, y + 186, buttons_w, 48), self._topup)
+        self.topup_button = Button("Пополнить +100", pygame.Rect(cx - buttons_w // 2, y + 248, buttons_w, 48), self._topup)
 
     def _topup(self) -> None:
         self.app.balance.deposit(100)
@@ -652,6 +657,7 @@ class PygameCasinoApp:
             "dice": DiceScene(self),
             "roulette": RouletteScene(self),
             "blackjack": BlackjackScene(self),
+            "slot": SlotScene(self),
         }
         self.current: Scene = self.scenes["menu"]
 
@@ -673,6 +679,10 @@ class PygameCasinoApp:
                     self._timer_handlers[event.type](event.type)
                 self.current.handle(event)
 
+            # Обновляем состояние сцены (для анимаций)
+            if hasattr(self.current, 'update'):
+                self.current.update()
+                
             self.current.draw(self.screen)
             pygame.display.flip()
             self.clock.tick(60)
@@ -687,6 +697,27 @@ class PygameCasinoApp:
             self.screen = pygame.display.set_mode(self.windowed_size)
             self.size = self.windowed_size
             self.fullscreen = False
+
+
+class SlotScene(Scene):
+    def __init__(self, app: "PygameCasinoApp") -> None:
+        super().__init__(app)
+        self.slot_game_manager = SlotGameManager(app.balance)
+        self.slot_gui = SlotMachineGUI(self.slot_game_manager, app.size[0], app.size[1])
+        
+    def draw(self, screen: pygame.Surface) -> None:
+        self.slot_gui.draw(screen)
+        
+    def handle(self, event: pygame.event.Event) -> None:
+        result = self.slot_gui.handle_event(event)
+        if result == 'back_to_menu':
+            self.app.go("menu")
+        elif result == 'show_stats':
+            # Здесь можно добавить показ детальной статистики
+            pass
+            
+    def update(self) -> None:
+        self.slot_gui.update()
 
 
 def main() -> None:

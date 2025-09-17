@@ -1,0 +1,22 @@
+{
+  "total_spins": 8,
+  "total_wins": 0,
+  "total_bet": 425,
+  "total_payout": 0,
+  "biggest_win": 0,
+  "current_streak": 0,
+  "longest_streak": 0,
+  "last_win_time": null,
+  "games_played": 8,
+  "symbol_stats": {
+    "🍒": 7,
+    "🍋": 4,
+    "🍊": 4,
+    "🍇": 3,
+    "🔔": 6,
+    "📊": 0,
+    "7️⃣": 0,
+    "💎": 0
+  },
+  "win_line_stats": {}
+}
