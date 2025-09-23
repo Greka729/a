@@ -155,7 +155,7 @@ class SlotGameManager:
                 self.game_state.symbol_stats[symbol] += 1
             
             # Проверяем выигрыши
-            wins = self.win_checker.check_all_wins([result], self.current_bet)
+            wins = self.win_checker.check_all_wins(result, self.current_bet)
             self.last_wins = wins
             
             # Вычисляем общий выигрыш

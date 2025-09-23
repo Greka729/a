@@ -59,30 +59,117 @@ class SlotWinChecker:
             WinType.WILD: 3.0
         }
     
-    def check_all_wins(self, reels: List[List[Symbol]], bet: int) -> List[Dict]:
+    def check_all_wins(self, reels: List[Symbol], bet: int) -> List[Dict]:
         """
         Проверить все возможные выигрыши
         Возвращает список выигрышных комбинаций
         """
         wins = []
         
-        # Проверяем обычные выигрышные линии
-        for line in self.win_lines:
-            win = self._check_line_win(reels, line, bet)
-            if win:
-                wins.append(win)
+        # Если передали массив массивов (3x3), преобразуем в простой массив
+        if isinstance(reels[0], list):
+            # Берем среднюю линию (второй ряд)
+            symbols = [reel[1] for reel in reels]
+        else:
+            # Уже простой массив из 3 символов
+            symbols = reels
+        
+        # Проверяем простые комбинации (3 одинаковых символа)
+        win = self._check_simple_win(symbols, bet)
+        if win:
+            wins.append(win)
         
         # Проверяем разбросанные символы
-        scatter_win = self._check_scatter_win(reels, bet)
+        scatter_win = self._check_scatter_win_simple(symbols, bet)
         if scatter_win:
             wins.append(scatter_win)
         
         # Проверяем дикие символы
-        wild_win = self._check_wild_win(reels, bet)
+        wild_win = self._check_wild_win_simple(symbols, bet)
         if wild_win:
             wins.append(wild_win)
         
         return wins
+    
+    def _check_simple_win(self, symbols: List[Symbol], bet: int) -> Dict:
+        """Проверить простой выигрыш (3 одинаковых символа)"""
+        if len(symbols) != 3:
+            return None
+        
+        # Подсчитываем символы
+        symbol_counts = {}
+        for symbol in symbols:
+            symbol_counts[symbol] = symbol_counts.get(symbol, 0) + 1
+        
+        # Ищем выигрышную комбинацию
+        for symbol, count in symbol_counts.items():
+            if count >= 2:  # Минимум 2 одинаковых символа
+                base_payout = self._get_symbol_payout(symbol, count)
+                if base_payout > 0:
+                    total_payout = int(base_payout * bet)
+                    return {
+                        'type': 'simple_win',
+                        'win_type': WinType.HORIZONTAL,
+                        'symbol': symbol,
+                        'count': count,
+                        'positions': [(i, 0) for i in range(3) if symbols[i] == symbol],
+                        'payout': total_payout,
+                        'multiplier': 1.0
+                    }
+        
+        return None
+    
+    def _check_scatter_win_simple(self, symbols: List[Symbol], bet: int) -> Dict:
+        """Проверить выигрыш разбросанных символов (простая версия)"""
+        scatter_count = 0
+        scatter_positions = []
+        
+        for i, symbol in enumerate(symbols):
+            if symbol in self.scatter_symbols:
+                scatter_count += 1
+                scatter_positions.append((i, 0))
+        
+        if scatter_count >= 2:  # Минимум 2 семерки
+            bonus_multiplier = scatter_count * 0.5
+            payout = int(bet * 5 * bonus_multiplier)
+            
+            return {
+                'type': 'scatter_win',
+                'win_type': WinType.SCATTER,
+                'symbol': Symbol.SEVEN,
+                'count': scatter_count,
+                'positions': scatter_positions,
+                'payout': payout,
+                'multiplier': bonus_multiplier
+            }
+        
+        return None
+    
+    def _check_wild_win_simple(self, symbols: List[Symbol], bet: int) -> Dict:
+        """Проверить выигрыш с дикими символами (простая версия)"""
+        wild_count = 0
+        wild_positions = []
+        
+        for i, symbol in enumerate(symbols):
+            if symbol in self.wild_symbols:
+                wild_count += 1
+                wild_positions.append((i, 0))
+        
+        if wild_count >= 2:  # Минимум 2 алмаза
+            bonus_multiplier = wild_count * 2.0
+            payout = int(bet * 10 * bonus_multiplier)
+            
+            return {
+                'type': 'wild_win',
+                'win_type': WinType.WILD,
+                'symbol': Symbol.DIAMOND,
+                'count': wild_count,
+                'positions': wild_positions,
+                'payout': payout,
+                'multiplier': bonus_multiplier
+            }
+        
+        return None
     
     def _check_line_win(self, reels: List[List[Symbol]], line: WinLine, bet: int) -> Dict:
         """Проверить выигрыш по конкретной линии"""

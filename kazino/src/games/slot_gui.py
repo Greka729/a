@@ -157,35 +157,174 @@ class SlotMachineGUI:
         self.buttons['back'] = pygame.Rect(self.screen_width - 120, 20, 100, 30)
 
     def _load_icons(self, icon_box_size: Tuple[int, int]) -> None:
-        """Загрузить иконки символов, если доступны. Fallback на эмодзи."""
-        # Ожидаемые имена файлов
-        name_map = {
-            Symbol.CHERRY: "cherry.png",
-            Symbol.LEMON: "lemon.png",
-            Symbol.ORANGE: "orange.png",
-            Symbol.PLUM: "plum.png",
-            Symbol.BELL: "bell.png",
-            Symbol.BAR: "bar.png",
-            Symbol.SEVEN: "seven.png",
-            Symbol.DIAMOND: "diamond.png",
+        """Создать иконки символов программно"""
+        for symbol in Symbol:
+            icon = self._create_symbol_icon(symbol, icon_box_size)
+            self.symbol_icons[symbol] = icon
+    
+    def _create_symbol_icon(self, symbol: Symbol, size: Tuple[int, int]) -> pygame.Surface:
+        """Создать иконку символа программно"""
+        width, height = size
+        surface = pygame.Surface((width, height), pygame.SRCALPHA)
+        
+        # Цвета для разных символов
+        colors = {
+            Symbol.CHERRY: (255, 0, 0),      # Красный
+            Symbol.LEMON: (255, 255, 0),     # Желтый
+            Symbol.ORANGE: (255, 165, 0),    # Оранжевый
+            Symbol.PLUM: (128, 0, 128),      # Фиолетовый
+            Symbol.BELL: (255, 215, 0),      # Золотой
+            Symbol.BAR: (0, 0, 255),         # Синий
+            Symbol.SEVEN: (255, 255, 255),   # Белый
+            Symbol.DIAMOND: (0, 255, 255),   # Голубой
         }
-        search_dirs = ["assets/icons", "assets", "data/icons", "icons"]
-        for symbol, fname in name_map.items():
-            loaded = False
-            for base in search_dirs:
-                path = f"{base}/{fname}"
-                try:
-                    img = pygame.image.load(path)
-                    img = img.convert_alpha()
-                    img = pygame.transform.smoothscale(img, icon_box_size)
-                    self.symbol_icons[symbol] = img
-                    loaded = True
-                    break
-                except Exception:
-                    continue
-            if not loaded:
-                # Fallback: no icon for this symbol; emoji will be used
-                pass
+        
+        color = colors.get(symbol, (128, 128, 128))
+        
+        if symbol == Symbol.CHERRY:
+            self._draw_cherry(surface, width, height, color)
+        elif symbol == Symbol.LEMON:
+            self._draw_lemon(surface, width, height, color)
+        elif symbol == Symbol.ORANGE:
+            self._draw_orange(surface, width, height, color)
+        elif symbol == Symbol.PLUM:
+            self._draw_plum(surface, width, height, color)
+        elif symbol == Symbol.BELL:
+            self._draw_bell(surface, width, height, color)
+        elif symbol == Symbol.BAR:
+            self._draw_bar(surface, width, height, color)
+        elif symbol == Symbol.SEVEN:
+            self._draw_seven(surface, width, height, color)
+        elif symbol == Symbol.DIAMOND:
+            self._draw_diamond(surface, width, height, color)
+        
+        return surface
+    
+    def _draw_cherry(self, surface: pygame.Surface, width: int, height: int, color: Tuple[int, int, int]):
+        """Нарисовать вишню"""
+        center_x, center_y = width // 2, height // 2
+        radius = min(width, height) // 3
+        
+        # Две вишни
+        pygame.draw.circle(surface, color, (center_x - radius//2, center_y), radius)
+        pygame.draw.circle(surface, color, (center_x + radius//2, center_y), radius)
+        
+        # Стебель
+        pygame.draw.line(surface, (0, 100, 0), (center_x, center_y - radius), (center_x, center_y - radius*2), 3)
+    
+    def _draw_lemon(self, surface: pygame.Surface, width: int, height: int, color: Tuple[int, int, int]):
+        """Нарисовать лимон"""
+        center_x, center_y = width // 2, height // 2
+        radius = min(width, height) // 3
+        
+        # Овал (лимон)
+        pygame.draw.ellipse(surface, color, (center_x - radius, center_y - radius//2, radius*2, radius))
+        
+        # Текстура лимона
+        for i in range(3):
+            y = center_y - radius//2 + i * radius//3
+            pygame.draw.line(surface, (200, 200, 0), (center_x - radius//2, y), (center_x + radius//2, y), 2)
+    
+    def _draw_orange(self, surface: pygame.Surface, width: int, height: int, color: Tuple[int, int, int]):
+        """Нарисовать апельсин"""
+        center_x, center_y = width // 2, height // 2
+        radius = min(width, height) // 3
+        
+        # Круг (апельсин)
+        pygame.draw.circle(surface, color, (center_x, center_y), radius)
+        
+        # Текстура апельсина
+        for i in range(4):
+            angle = i * 45
+            start_x = center_x + int(radius * 0.7 * pygame.math.Vector2(1, 0).rotate(angle).x)
+            start_y = center_y + int(radius * 0.7 * pygame.math.Vector2(1, 0).rotate(angle).y)
+            end_x = center_x + int(radius * 0.9 * pygame.math.Vector2(1, 0).rotate(angle).x)
+            end_y = center_y + int(radius * 0.9 * pygame.math.Vector2(1, 0).rotate(angle).y)
+            pygame.draw.line(surface, (255, 200, 0), (start_x, start_y), (end_x, end_y), 2)
+    
+    def _draw_plum(self, surface: pygame.Surface, width: int, height: int, color: Tuple[int, int, int]):
+        """Нарисовать сливу"""
+        center_x, center_y = width // 2, height // 2
+        radius = min(width, height) // 3
+        
+        # Овал (слива)
+        pygame.draw.ellipse(surface, color, (center_x - radius, center_y - radius//2, radius*2, radius))
+        
+        # Стебель
+        pygame.draw.line(surface, (0, 100, 0), (center_x, center_y - radius//2), (center_x, center_y - radius), 3)
+    
+    def _draw_bell(self, surface: pygame.Surface, width: int, height: int, color: Tuple[int, int, int]):
+        """Нарисовать колокольчик"""
+        center_x, center_y = width // 2, height // 2
+        radius = min(width, height) // 3
+        
+        # Колокольчик (треугольник с закругленным низом)
+        points = [
+            (center_x, center_y - radius),
+            (center_x - radius, center_y + radius//2),
+            (center_x + radius, center_y + radius//2)
+        ]
+        pygame.draw.polygon(surface, color, points)
+        
+        # Звонок внутри
+        pygame.draw.circle(surface, (200, 200, 0), (center_x, center_y), radius//3)
+        
+        # Ручка
+        pygame.draw.line(surface, (139, 69, 19), (center_x, center_y - radius), (center_x, center_y - radius*1.5), 4)
+    
+    def _draw_bar(self, surface: pygame.Surface, width: int, height: int, color: Tuple[int, int, int]):
+        """Нарисовать бар"""
+        center_x, center_y = width // 2, height // 2
+        bar_width = width // 2
+        bar_height = height // 3
+        
+        # Прямоугольник
+        rect = pygame.Rect(center_x - bar_width//2, center_y - bar_height//2, bar_width, bar_height)
+        pygame.draw.rect(surface, color, rect)
+        pygame.draw.rect(surface, (0, 0, 0), rect, 3)
+        
+        # Текст "BAR"
+        font = pygame.font.Font(None, min(width, height) // 4)
+        text = font.render("BAR", True, (255, 255, 255))
+        text_rect = text.get_rect(center=(center_x, center_y))
+        surface.blit(text, text_rect)
+    
+    def _draw_seven(self, surface: pygame.Surface, width: int, height: int, color: Tuple[int, int, int]):
+        """Нарисовать семерку"""
+        center_x, center_y = width // 2, height // 2
+        radius = min(width, height) // 3
+        
+        # Большая семерка
+        font = pygame.font.Font(None, min(width, height) // 2)
+        text = font.render("7", True, color)
+        text_rect = text.get_rect(center=(center_x, center_y))
+        surface.blit(text, text_rect)
+        
+        # Звездочки вокруг
+        star_size = min(width, height) // 8
+        for i in range(4):
+            angle = i * 90
+            star_x = center_x + int(radius * 0.8 * pygame.math.Vector2(1, 0).rotate(angle).x)
+            star_y = center_y + int(radius * 0.8 * pygame.math.Vector2(1, 0).rotate(angle).y)
+            pygame.draw.circle(surface, (255, 255, 0), (star_x, star_y), star_size)
+    
+    def _draw_diamond(self, surface: pygame.Surface, width: int, height: int, color: Tuple[int, int, int]):
+        """Нарисовать алмаз"""
+        center_x, center_y = width // 2, height // 2
+        radius = min(width, height) // 3
+        
+        # Алмаз (ромб)
+        points = [
+            (center_x, center_y - radius),
+            (center_x + radius, center_y),
+            (center_x, center_y + radius),
+            (center_x - radius, center_y)
+        ]
+        pygame.draw.polygon(surface, color, points)
+        pygame.draw.polygon(surface, (0, 0, 0), points, 2)
+        
+        # Блеск
+        pygame.draw.circle(surface, (255, 255, 255), (center_x - radius//3, center_y - radius//3), radius//6)
     
     
     def handle_event(self, event: pygame.event.Event) -> Optional[str]:

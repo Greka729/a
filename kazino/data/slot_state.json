@@ -1,22 +1,21 @@
 {
-  "total_spins": 8,
-  "total_wins": 0,
-  "total_bet": 425,
-  "total_payout": 0,
-  "biggest_win": 0,
-  "current_streak": 0,
-  "longest_streak": 0,
-  "last_win_time": null,
-  "games_played": 8,
+  "total_spins": 39,
+  "total_wins": 10,
+  "total_bet": 3100,
+  "total_payout": 2900,
+  "biggest_win": 500,
+  "current_streak": 2,
+  "longest_streak": 3,
+  "last_win_time": "2025-09-23T10:16:55.711262",
+  "games_played": 39,
   "symbol_stats": {
-    "🍒": 7,
-    "🍋": 4,
-    "🍊": 4,
-    "🍇": 3,
-    "🔔": 6,
-    "📊": 0,
-    "7️⃣": 0,
-    "💎": 0
+    "🍒": 28,
+    "🍋": 23,
+    "🍊": 25,
+    "🍇": 14,
+    "🔔": 14,
+    "📊": 10,
+    "7️⃣": 2,
+    "💎": 1
   },
-  "win_line_stats": {}
-}
+  "win_line_stats": {
