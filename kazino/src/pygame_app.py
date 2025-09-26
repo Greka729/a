@@ -207,10 +207,21 @@ class MenuScene(Scene):
             Button("Блэкджек", pygame.Rect(cx - buttons_w // 2, y + 124, buttons_w, 48), lambda: app.go("blackjack")),
             Button("Слот-машина", pygame.Rect(cx - buttons_w // 2, y + 186, buttons_w, 48), lambda: app.go("slot")),
         ]
-        self.topup_button = Button("Пополнить +100", pygame.Rect(cx - buttons_w // 2, y + 248, buttons_w, 48), self._topup)
+        # Поле ввода суммы пополнения и кнопка
+        self.topup_input = TextInput(pygame.Rect(cx - buttons_w // 2, y + 248, buttons_w, 48), "Сумма пополнения")
+        self.topup_button = Button("Пополнить", pygame.Rect(cx - buttons_w // 2, y + 310, buttons_w, 48), self._topup)
+        self.msg: str = ""
 
     def _topup(self) -> None:
-        self.app.balance.deposit(100)
+        amount = self.topup_input.get_int(default=0, min_value=1)
+        if amount is None:
+            self.msg = "Введите сумму \u2265 1"
+            return
+        try:
+            self.app.balance.deposit(int(amount))
+            self.msg = "Баланс пополнен"
+        except Exception as e:  # noqa: BLE001
+            self.msg = f"Ошибка: {e}"
         
 
     def draw(self, screen: pygame.Surface) -> None:
@@ -219,13 +230,17 @@ class MenuScene(Scene):
         draw_text(screen, f"Баланс: {self.app.balance.get_balance()}", (40, 90), self.ui_font)
         for b in self.buttons:
             b.draw(screen, self.ui_font)
-        # Top up is available in both windowed and fullscreen modes
+        # Поле и кнопка пополнения доступны всегда (оконный и полный экран)
+        self.topup_input.draw(screen, self.ui_font)
         self.topup_button.enabled = True
         self.topup_button.draw(screen, self.ui_font)
+        if self.msg:
+            draw_text(screen, self.msg, (40, 120), self.ui_font, color=(50, 60, 70))
 
     def handle(self, event: pygame.event.Event) -> None:
         for b in self.buttons:
             b.handle(event)
+        self.topup_input.handle(event)
         self.topup_button.handle(event)
 
 
