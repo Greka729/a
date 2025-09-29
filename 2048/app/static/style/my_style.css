@@ -1,0 +1,18 @@
+/* Custom overrides for Telegram WebApp view. Keep minimal to avoid 404s. */
+
+:root {
+  --tg-bg: #212121;
+  --tg-secondary-bg: #181818;
+  --tg-text: #ffffff;
+}
+
+body {
+  background: var(--tg-bg);
+  color: var(--tg-text);
+}
+
+.container {
+  padding-bottom: 24px;
+}
+
+
