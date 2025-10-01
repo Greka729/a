@@ -77,22 +77,144 @@ async def root() -> str:
           <meta charset=\"utf-8\" />
           <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />
           <title>Crypto Analysis</title>
-          <style>body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;margin:32px;} .card{border:1px solid #e5e7eb;border-radius:12px;padding:16px;max-width:540px} .label{color:#6b7280;font-size:12px;text-transform:uppercase;letter-spacing:.06em} .value{font-size:32px;font-weight:700;margin:8px 0} .muted{color:#6b7280} button{padding:8px 12px;border-radius:8px;border:1px solid #e5e7eb;background:#f9fafb;cursor:pointer} button:hover{background:#f3f4f6} select{padding:6px;border-radius:8px;border:1px solid #e5e7eb;margin-left:8px}</style>
+          <style>
+            * { box-sizing: border-box; }
+            body {
+              font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+              margin: 0;
+              padding: 32px;
+              min-height: 100vh;
+              display: flex;
+              justify-content: center;
+              align-items: center;
+              background: linear-gradient(120deg, #1e3a8a, #7c3aed, #0ea5e9, #22c55e);
+              background-size: 300% 300%;
+              animation: bgShift 14s ease infinite;
+            }
+            @keyframes bgShift {
+              0% { background-position: 0% 50%; }
+              50% { background-position: 100% 50%; }
+              100% { background-position: 0% 50%; }
+            }
+            .container {
+              width: 100%;
+              max-width: 600px;
+              display: flex;
+              justify-content: center;
+            }
+            .card {
+              border: 1px solid #e5e7eb;
+              border-radius: 16px;
+              padding: 24px;
+              width: 100%;
+              background: rgba(255, 255, 255, 0.95);
+              backdrop-filter: blur(10px);
+              box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+              transition: transform .2s ease, box-shadow .2s ease;
+            }
+            .card:hover { transform: translateY(-2px); box-shadow: 0 25px 35px -10px rgba(0,0,0,.15), 0 10px 12px -6px rgba(0,0,0,.08); }
+            .label {
+              color: #6b7280;
+              font-size: 12px;
+              text-transform: uppercase;
+              letter-spacing: .06em;
+              font-weight: 600;
+            }
+            .value {
+              font-size: 40px;
+              font-weight: 700;
+              margin: 12px 0;
+              color: transparent;
+              background: linear-gradient(90deg, #111827, #0ea5e9, #22c55e, #111827);
+              -webkit-background-clip: text;
+              background-clip: text;
+              background-size: 200% 100%;
+              animation: glow 6s ease-in-out infinite;
+            }
+            @keyframes glow { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+            .muted {
+              color: #6b7280;
+              font-size: 14px;
+            }
+            button {
+              padding: 10px 16px;
+              border-radius: 8px;
+              border: 1px solid #e5e7eb;
+              background: #f9fafb;
+              cursor: pointer;
+              font-weight: 500;
+              transition: all 0.2s ease;
+            }
+            button:hover {
+              background: #f3f4f6;
+              transform: translateY(-1px);
+              box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            }
+            button[disabled] { opacity: .6; cursor: not-allowed; transform: none; box-shadow: none; }
+            select {
+              padding: 8px 12px;
+              border-radius: 8px;
+              border: 1px solid #e5e7eb;
+              margin-left: 8px;
+              background: white;
+              font-size: 14px;
+            }
+            .controls {
+              display: flex;
+              flex-wrap: wrap;
+              gap: 12px;
+              align-items: center;
+              margin-top: 16px;
+            }
+            .controls label {
+              display: flex;
+              align-items: center;
+              font-size: 14px;
+              font-weight: 500;
+            }
+            .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+            .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid #e5e7eb; border-top-color: #3b82f6; border-radius: 50%; animation: spin 1s linear infinite; vertical-align: -2px; margin-left: 8px; }
+            @keyframes spin { to { transform: rotate(360deg); } }
+            a {
+              color: #3b82f6;
+              text-decoration: none;
+              font-weight: 500;
+            }
+            a:hover {
+              text-decoration: underline;
+            }
+            @media (max-width: 640px) {
+              body {
+                padding: 16px;
+              }
+              .card {
+                padding: 20px;
+              }
+              .value {
+                font-size: 28px;
+              }
+              .controls {
+                flex-direction: column;
+                align-items: stretch;
+              }
+              .controls label {
+                justify-content: space-between;
+              }
+            }
+          </style>
         </head>
         <body>
-          <div class=\"card\">
-            <div class=\"label\">Current Price</div>
-            <div id=\"value\" class=\"value\">—</div>
-            <div class=\"muted\">Source: <span id=\"source\">—</span></div>
-            <div class=\"muted\">Currency: <span id=\"currency\">USD</span></div>
+          <div class=\"container\">
+            <div class=\"card\">
+            <div class=\"row\">\n              <div>\n                <div class=\"label\">Current Price</div>\n                <div id=\"value\" class=\"value\">—</div>\n              </div>\n              <div class=\"muted\" style=\"text-align:right\">\n                <div>Source: <span id=\"source\">—</span></div>\n                <div>Currency: <span id=\"currency\">USD</span></div>\n              </div>\n            </div>
             <div class=\"muted\" id=\"error\" style=\"color:#dc2626;margin-top:6px\"></div>
             <div class=\"label\" style=\"margin-top:16px\">Spreads across exchanges</div>
             <div id=\"spreads\" class=\"muted\">—</div>
             <div style=\"margin-top:8px\">
-              <canvas id=\"spreadChart\" width=\"520\" height=\"220\" style=\"border:1px solid #e5e7eb;border-radius:8px;background:#fff\"></canvas>
+              <canvas id=\"spreadChart\" width=\"520\" height=\"220\" style=\"width:100%;max-width:520px;height:220px;border:1px solid #e5e7eb;border-radius:8px;background:#fff\"></canvas>
             </div>
-            <div style=\"margin-top:12px\">
-              <button onclick=\"load()\">Reload</button>
+            <div class=\"controls\">
+              <button id="reloadBtn" onclick="load()">Reload</button>
               <label>Symbol:
                 <select id=\"symbol\">
                   <option>BTC</option><option>ETH</option><option>BNB</option><option>ADA</option><option>XRP</option><option>SOL</option><option>DOT</option><option>DOGE</option><option>AVAX</option><option>MATIC</option>
@@ -103,7 +225,17 @@ async def root() -> str:
                   <option>auto</option><option>binance</option><option>bybit</option><option>bitget</option><option>coinbase</option>
                 </select>
               </label>
-              <a href=\"/docs\" style=\"margin-left:12px\">API Docs</a>
+              <label>Auto refresh:
+                <select id="intervalSel">
+                  <option value="0">Off</option>
+                  <option value="5000">5s</option>
+                  <option value="10000">10s</option>
+                  <option value="30000">30s</option>
+                </select>
+              </label>
+              <span id="loading" style="display:none"><span class="spinner"></span></span>
+              <a href="/docs">API Docs</a>
+            </div>
             </div>
           </div>
           <script>
@@ -136,15 +268,34 @@ async def root() -> str:
               }
             }
             function formatUSD(n) {
-              const num = Number(n);
-              if (!Number.isFinite(num)) return n;
-              return '$ ' + num.toLocaleString(undefined, { maximumFractionDigits: 8 });
+               const num = Number(n);
+               if (!Number.isFinite(num)) return n;
+               return '$ ' + num.toLocaleString(undefined, { maximumFractionDigits: 8 });
+             }
+            function setLoading(isLoading) {
+              const btn = document.getElementById('reloadBtn');
+              const spinner = document.getElementById('loading');
+              if (btn) btn.disabled = !!isLoading;
+              if (spinner) spinner.style.display = isLoading ? 'inline-block' : 'none';
+            }
+            let lastPrices = [];
+            function resizeCanvasForDPR(canvas) {
+              const dpr = Math.max(1, window.devicePixelRatio || 1);
+              const rect = canvas.getBoundingClientRect();
+              const cssWidth = Math.max(320, rect.width || 520);
+              const cssHeight = Math.max(160, rect.height || 220);
+              canvas.width = Math.round(cssWidth * dpr);
+              canvas.height = Math.round(cssHeight * dpr);
+              const ctx = canvas.getContext('2d');
+              ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+              return { ctx, width: cssWidth, height: cssHeight };
             }
             async function load() {
               const sym = document.getElementById('symbol').value;
               const src = document.getElementById('sourceSel').value;
               const err = document.getElementById('error');
               err.textContent = '';
+              setLoading(true);
               try {
                 const res = await fetch(`/api/crypto/${sym}?source=${src}`);
                 if (!res.ok) {
@@ -162,7 +313,7 @@ async def root() -> str:
                 document.getElementById('source').textContent = '—';
                 document.getElementById('currency').textContent = 'USD';
                 err.textContent = e && e.message ? e.message : 'Request failed';
-              }
+              } finally { setLoading(false); }
             }
             async function loadSpreads(sym) {
               const el = document.getElementById('spreads');
@@ -180,7 +331,8 @@ async def root() -> str:
                 parts.push(`Max: ${d.max_source} ${formatUSD(d.max_price)}`);
                 parts.push(`Spread: ${formatUSD(d.spread_abs)} (${d.spread_pct.toFixed(3)}%)`);
                 el.textContent = parts.join('  |  ');
-                drawSpreadChart(d.prices || []);
+                lastPrices = d.prices || [];
+                drawSpreadChart(lastPrices);
               } catch (_e) {
                 el.textContent = '—';
                 drawSpreadChart([]);
@@ -189,9 +341,9 @@ async def root() -> str:
             function drawSpreadChart(prices) {
               const canvas = document.getElementById('spreadChart');
               if (!canvas) return;
-              const ctx = canvas.getContext('2d');
+              const { ctx, width, height } = resizeCanvasForDPR(canvas);
               // Clear
-              ctx.clearRect(0, 0, canvas.width, canvas.height);
+              ctx.clearRect(0, 0, width, height);
               // If no data
               if (!Array.isArray(prices) || prices.length === 0) {
                 ctx.fillStyle = '#9ca3af';
@@ -200,8 +352,8 @@ async def root() -> str:
                 return;
               }
               const padding = { top: 16, right: 16, bottom: 36, left: 48 };
-              const innerW = canvas.width - padding.left - padding.right;
-              const innerH = canvas.height - padding.top - padding.bottom;
+              const innerW = width - padding.left - padding.right;
+              const innerH = height - padding.top - padding.bottom;
               // Compute min/max
               const values = prices.map(p => Number(p.price)).filter(n => Number.isFinite(n));
               const minV = Math.min(...values);
@@ -265,11 +417,23 @@ async def root() -> str:
                 ctx.fillText(valText, vtx, y - 4);
               });
             }
+            function applyInterval() {
+              const sel = document.getElementById('intervalSel');
+              const ms = Number(sel && sel.value ? sel.value : 0) || 0;
+              if (window.__priceTimer) { clearInterval(window.__priceTimer); window.__priceTimer = null; }
+              if (ms > 0) {
+                window.__priceTimer = setInterval(() => { load(); }, ms);
+              }
+            }
             // Hook up change listeners
             document.getElementById('symbol').addEventListener('change', () => { enforceSourceCompatibility(); load(); });
             document.getElementById('sourceSel').addEventListener('change', () => { enforceSourceCompatibility(); load(); });
+            const intervalSel = document.getElementById('intervalSel');
+            if (intervalSel) { intervalSel.addEventListener('change', applyInterval); }
+            window.addEventListener('resize', () => { if (lastPrices) drawSpreadChart(lastPrices); });
             enforceSourceCompatibility();
             load();
+            applyInterval();
           </script>
         </body>
         </html>
