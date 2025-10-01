@@ -1,5 +1,5 @@
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, Response
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 import asyncio
@@ -77,8 +77,31 @@ async def root() -> str:
           <meta charset=\"utf-8\" />
           <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />
           <title>Crypto Analysis</title>
+          <link rel="icon" href="/favicon.ico" />
           <style>
             * { box-sizing: border-box; }
+            :root {
+              --bg: #f5f7fa;
+              --bg2: #c3cfe2;
+              --card-bg: rgba(255, 255, 255, 0.95);
+              --border: #e5e7eb;
+              --text: #111827;
+              --muted: #6b7280;
+              --link: #3b82f6;
+              --shadow1: rgba(0, 0, 0, 0.1);
+              --shadow2: rgba(0, 0, 0, 0.04);
+            }
+            [data-theme="dark"] {
+              --bg: #0f172a;
+              --bg2: #1e293b;
+              --card-bg: rgba(17, 24, 39, 0.9);
+              --border: #293241;
+              --text: #e5e7eb;
+              --muted: #9ca3af;
+              --link: #60a5fa;
+              --shadow1: rgba(0, 0, 0, 0.5);
+              --shadow2: rgba(0, 0, 0, 0.3);
+            }
             body {
               font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
               margin: 0;
@@ -87,14 +110,8 @@ async def root() -> str:
               display: flex;
               justify-content: center;
               align-items: center;
-              background: linear-gradient(120deg, #1e3a8a, #7c3aed, #0ea5e9, #22c55e);
-              background-size: 300% 300%;
-              animation: bgShift 14s ease infinite;
-            }
-            @keyframes bgShift {
-              0% { background-position: 0% 50%; }
-              50% { background-position: 100% 50%; }
-              100% { background-position: 0% 50%; }
+              background: linear-gradient(135deg, var(--bg) 0%, var(--bg2) 100%);
+              color: var(--text);
             }
             .container {
               width: 100%;
@@ -103,61 +120,54 @@ async def root() -> str:
               justify-content: center;
             }
             .card {
-              border: 1px solid #e5e7eb;
+              border: 1px solid var(--border);
               border-radius: 16px;
               padding: 24px;
               width: 100%;
-              background: rgba(255, 255, 255, 0.95);
+              background: var(--card-bg);
               backdrop-filter: blur(10px);
-              box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-              transition: transform .2s ease, box-shadow .2s ease;
+              box-shadow: 0 20px 25px -5px var(--shadow1), 0 10px 10px -5px var(--shadow2);
             }
-            .card:hover { transform: translateY(-2px); box-shadow: 0 25px 35px -10px rgba(0,0,0,.15), 0 10px 12px -6px rgba(0,0,0,.08); }
             .label {
-              color: #6b7280;
+              color: var(--muted);
               font-size: 12px;
               text-transform: uppercase;
               letter-spacing: .06em;
               font-weight: 600;
             }
             .value {
-              font-size: 40px;
+              font-size: 36px;
               font-weight: 700;
               margin: 12px 0;
-              color: transparent;
-              background: linear-gradient(90deg, #111827, #0ea5e9, #22c55e, #111827);
-              -webkit-background-clip: text;
-              background-clip: text;
-              background-size: 200% 100%;
-              animation: glow 6s ease-in-out infinite;
+              color: var(--text);
             }
-            @keyframes glow { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
             .muted {
-              color: #6b7280;
+              color: var(--muted);
               font-size: 14px;
             }
             button {
               padding: 10px 16px;
               border-radius: 8px;
-              border: 1px solid #e5e7eb;
-              background: #f9fafb;
+              border: 1px solid var(--border);
+              background: transparent;
               cursor: pointer;
               font-weight: 500;
               transition: all 0.2s ease;
+              color: var(--text);
             }
             button:hover {
-              background: #f3f4f6;
+              background: rgba(0,0,0,0.04);
               transform: translateY(-1px);
-              box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+              box-shadow: 0 4px 6px -1px var(--shadow1);
             }
-            button[disabled] { opacity: .6; cursor: not-allowed; transform: none; box-shadow: none; }
             select {
               padding: 8px 12px;
               border-radius: 8px;
-              border: 1px solid #e5e7eb;
+              border: 1px solid var(--border);
               margin-left: 8px;
-              background: white;
+              background: transparent;
               font-size: 14px;
+              color: var(--text);
             }
             .controls {
               display: flex;
@@ -172,9 +182,6 @@ async def root() -> str:
               font-size: 14px;
               font-weight: 500;
             }
-            .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-            .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid #e5e7eb; border-top-color: #3b82f6; border-radius: 50%; animation: spin 1s linear infinite; vertical-align: -2px; margin-left: 8px; }
-            @keyframes spin { to { transform: rotate(360deg); } }
             a {
               color: #3b82f6;
               text-decoration: none;
@@ -206,7 +213,10 @@ async def root() -> str:
         <body>
           <div class=\"container\">
             <div class=\"card\">
-            <div class=\"row\">\n              <div>\n                <div class=\"label\">Current Price</div>\n                <div id=\"value\" class=\"value\">—</div>\n              </div>\n              <div class=\"muted\" style=\"text-align:right\">\n                <div>Source: <span id=\"source\">—</span></div>\n                <div>Currency: <span id=\"currency\">USD</span></div>\n              </div>\n            </div>
+            <div class=\"label\">Current Price</div>
+            <div id=\"value\" class=\"value\">—</div>
+            <div class=\"muted\">Source: <span id=\"source\">—</span></div>
+            <div class=\"muted\">Currency: <span id=\"currency\">USD</span></div>
             <div class=\"muted\" id=\"error\" style=\"color:#dc2626;margin-top:6px\"></div>
             <div class=\"label\" style=\"margin-top:16px\">Spreads across exchanges</div>
             <div id=\"spreads\" class=\"muted\">—</div>
@@ -214,7 +224,7 @@ async def root() -> str:
               <canvas id=\"spreadChart\" width=\"520\" height=\"220\" style=\"width:100%;max-width:520px;height:220px;border:1px solid #e5e7eb;border-radius:8px;background:#fff\"></canvas>
             </div>
             <div class=\"controls\">
-              <button id="reloadBtn" onclick="load()">Reload</button>
+              <button onclick=\"load()\">Reload</button>
               <label>Symbol:
                 <select id=\"symbol\">
                   <option>BTC</option><option>ETH</option><option>BNB</option><option>ADA</option><option>XRP</option><option>SOL</option><option>DOT</option><option>DOGE</option><option>AVAX</option><option>MATIC</option>
@@ -226,19 +236,32 @@ async def root() -> str:
                 </select>
               </label>
               <label>Auto refresh:
-                <select id="intervalSel">
-                  <option value="0">Off</option>
-                  <option value="5000">5s</option>
-                  <option value="10000">10s</option>
-                  <option value="30000">30s</option>
+                <select id=\"refreshSel\">
+                  <option value=\"0\">off</option>
+                  <option value=\"5\">5s</option>
+                  <option value=\"10\" selected>10s</option>
+                  <option value=\"30\">30s</option>
+                  <option value=\"60\">60s</option>
                 </select>
               </label>
-              <span id="loading" style="display:none"><span class="spinner"></span></span>
-              <a href="/docs">API Docs</a>
+              <button id=\"themeBtn\" title=\"Toggle theme\">🌙</button>
+              <a href=\"/docs\">API Docs</a>
             </div>
             </div>
           </div>
           <script>
+            // Theme
+            const applyTheme = (t) => {
+              document.body.setAttribute('data-theme', t);
+              localStorage.setItem('theme', t);
+              document.getElementById('themeBtn').textContent = t === 'dark' ? '☀️' : '🌙';
+            };
+            const savedTheme = localStorage.getItem('theme');
+            applyTheme(savedTheme || (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'));
+            document.getElementById('themeBtn').addEventListener('click', () => {
+              const curr = document.body.getAttribute('data-theme') || 'light';
+              applyTheme(curr === 'dark' ? 'light' : 'dark');
+            });
             const coinbaseSupported = new Set(['BTC','ETH','ADA','XRP','SOL','DOT','DOGE','AVAX','MATIC']);
             function enforceSourceCompatibility() {
               const symSel = document.getElementById('symbol');
@@ -268,34 +291,15 @@ async def root() -> str:
               }
             }
             function formatUSD(n) {
-               const num = Number(n);
-               if (!Number.isFinite(num)) return n;
-               return '$ ' + num.toLocaleString(undefined, { maximumFractionDigits: 8 });
-             }
-            function setLoading(isLoading) {
-              const btn = document.getElementById('reloadBtn');
-              const spinner = document.getElementById('loading');
-              if (btn) btn.disabled = !!isLoading;
-              if (spinner) spinner.style.display = isLoading ? 'inline-block' : 'none';
-            }
-            let lastPrices = [];
-            function resizeCanvasForDPR(canvas) {
-              const dpr = Math.max(1, window.devicePixelRatio || 1);
-              const rect = canvas.getBoundingClientRect();
-              const cssWidth = Math.max(320, rect.width || 520);
-              const cssHeight = Math.max(160, rect.height || 220);
-              canvas.width = Math.round(cssWidth * dpr);
-              canvas.height = Math.round(cssHeight * dpr);
-              const ctx = canvas.getContext('2d');
-              ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-              return { ctx, width: cssWidth, height: cssHeight };
+              const num = Number(n);
+              if (!Number.isFinite(num)) return n;
+              return '$ ' + num.toLocaleString(undefined, { maximumFractionDigits: 8 });
             }
             async function load() {
               const sym = document.getElementById('symbol').value;
               const src = document.getElementById('sourceSel').value;
               const err = document.getElementById('error');
               err.textContent = '';
-              setLoading(true);
               try {
                 const res = await fetch(`/api/crypto/${sym}?source=${src}`);
                 if (!res.ok) {
@@ -313,7 +317,7 @@ async def root() -> str:
                 document.getElementById('source').textContent = '—';
                 document.getElementById('currency').textContent = 'USD';
                 err.textContent = e && e.message ? e.message : 'Request failed';
-              } finally { setLoading(false); }
+              }
             }
             async function loadSpreads(sym) {
               const el = document.getElementById('spreads');
@@ -331,8 +335,7 @@ async def root() -> str:
                 parts.push(`Max: ${d.max_source} ${formatUSD(d.max_price)}`);
                 parts.push(`Spread: ${formatUSD(d.spread_abs)} (${d.spread_pct.toFixed(3)}%)`);
                 el.textContent = parts.join('  |  ');
-                lastPrices = d.prices || [];
-                drawSpreadChart(lastPrices);
+                drawSpreadChart(d.prices || []);
               } catch (_e) {
                 el.textContent = '—';
                 drawSpreadChart([]);
@@ -341,9 +344,9 @@ async def root() -> str:
             function drawSpreadChart(prices) {
               const canvas = document.getElementById('spreadChart');
               if (!canvas) return;
-              const { ctx, width, height } = resizeCanvasForDPR(canvas);
+              const ctx = canvas.getContext('2d');
               // Clear
-              ctx.clearRect(0, 0, width, height);
+              ctx.clearRect(0, 0, canvas.width, canvas.height);
               // If no data
               if (!Array.isArray(prices) || prices.length === 0) {
                 ctx.fillStyle = '#9ca3af';
@@ -352,8 +355,8 @@ async def root() -> str:
                 return;
               }
               const padding = { top: 16, right: 16, bottom: 36, left: 48 };
-              const innerW = width - padding.left - padding.right;
-              const innerH = height - padding.top - padding.bottom;
+              const innerW = canvas.width - padding.left - padding.right;
+              const innerH = canvas.height - padding.top - padding.bottom;
               // Compute min/max
               const values = prices.map(p => Number(p.price)).filter(n => Number.isFinite(n));
               const minV = Math.min(...values);
@@ -417,23 +420,23 @@ async def root() -> str:
                 ctx.fillText(valText, vtx, y - 4);
               });
             }
-            function applyInterval() {
-              const sel = document.getElementById('intervalSel');
-              const ms = Number(sel && sel.value ? sel.value : 0) || 0;
-              if (window.__priceTimer) { clearInterval(window.__priceTimer); window.__priceTimer = null; }
-              if (ms > 0) {
-                window.__priceTimer = setInterval(() => { load(); }, ms);
+            // Auto refresh
+            let refreshTimer = null;
+            function applyRefreshInterval() {
+              const sel = document.getElementById('refreshSel');
+              const sec = Number(sel.value || '0');
+              if (refreshTimer) { clearInterval(refreshTimer); refreshTimer = null; }
+              if (sec > 0) {
+                refreshTimer = setInterval(() => load(), sec * 1000);
               }
             }
+            document.getElementById('refreshSel').addEventListener('change', () => applyRefreshInterval());
             // Hook up change listeners
             document.getElementById('symbol').addEventListener('change', () => { enforceSourceCompatibility(); load(); });
             document.getElementById('sourceSel').addEventListener('change', () => { enforceSourceCompatibility(); load(); });
-            const intervalSel = document.getElementById('intervalSel');
-            if (intervalSel) { intervalSel.addEventListener('change', applyInterval); }
-            window.addEventListener('resize', () => { if (lastPrices) drawSpreadChart(lastPrices); });
             enforceSourceCompatibility();
             load();
-            applyInterval();
+            applyRefreshInterval();
           </script>
         </body>
         </html>
@@ -443,6 +446,30 @@ async def root() -> str:
 @app.get("/health")
 def health() -> dict:
     return {"status": "ok"}
+
+@app.get("/api/status")
+async def status() -> dict:
+    """Basic service status with supported symbols and parser readiness."""
+    ready = {name: (name in _parsers and _parsers[name] is not None) for name in ["binance", "bybit", "bitget", "coinbase"]}
+    return {
+        "service": app.title,
+        "version": app.version,
+        "supported_symbols": SUPPORTED_SYMBOLS,
+        "sources": SUPPORTED_SOURCES,
+        "parsers_ready": ready,
+    }
+
+@app.get("/favicon.ico")
+def favicon() -> Response:
+    """Serve a tiny SVG favicon to avoid 404 in logs."""
+    svg = (
+        "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'>"
+        "<defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0%' stop-color='#3b82f6'/><stop offset='100%' stop-color='#22c55e'/></linearGradient></defs>"
+        "<rect rx='14' ry='14' width='64' height='64' fill='url(#g)'/>"
+        "<path d='M14 38 L26 26 L36 36 L50 22' stroke='white' stroke-width='6' fill='none' stroke-linecap='round' stroke-linejoin='round'/>"
+        "</svg>"
+    )
+    return Response(content=svg, media_type="image/svg+xml")
 
 @app.get("/api/crypto/{symbol}", response_model=PriceResponse)
 async def get_current_price(symbol: str, source: str = "auto"):
