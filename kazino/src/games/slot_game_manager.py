@@ -96,15 +96,27 @@ class SlotGameManager:
         self._load_state()
     
     def _load_state(self):
-        """Загрузить состояние игры из файла"""
-        if os.path.exists(self.state_file):
+        """Загрузить состояние игры из файла. При ошибке — авто-ремонт."""
+        if not os.path.exists(self.state_file):
+            return
+        try:
+            with open(self.state_file, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                self.game_state = SlotGameState.from_dict(data)
+        except Exception as e:
+            # Авто-ремонт: переименуем битый файл и создадим новый по умолчанию
             try:
-                with open(self.state_file, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-                    self.game_state = SlotGameState.from_dict(data)
-            except Exception as e:
-                print(f"Ошибка загрузки состояния игры: {e}")
-                self.game_state = SlotGameState()
+                base, ext = os.path.splitext(self.state_file)
+                backup = f"{base}.corrupted{ext}"
+                if os.path.exists(self.state_file):
+                    os.replace(self.state_file, backup)
+                print(f"Состояние слотов повреждено и переименовано в: {backup}")
+            except Exception:
+                # тихо игнорируем проблемы с переименованием
+                pass
+            self.game_state = SlotGameState()
+            # попытка сохранить чистое состояние
+            self._save_state()
     
     def _save_state(self):
         """Сохранить состояние игры в файл"""

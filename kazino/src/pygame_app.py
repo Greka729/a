@@ -737,7 +737,12 @@ class SlotScene(Scene):
 
 def main() -> None:
     app = PygameCasinoApp()
-    app.run()
+    try:
+        app.run()
+    except KeyboardInterrupt:
+        # Graceful exit on Ctrl+C
+        pygame.quit()
+        sys.exit(0)
 
 
 if __name__ == "__main__":

@@ -205,9 +205,8 @@ class SlotSoundManager:
             if not pygame.mixer.get_init():
                 pygame.mixer.init(frequency=22050, size=-16, channels=2, buffer=512)
             self.sound_enabled = True
-        except Exception as e:
-            # Например: WASAPI endpoint not found. В таком случае продолжаем без звука
-            print(f"Звук отключен: {e}")
+        except Exception:
+            # Тихо отключаем звук, если устройство недоступно
             self.sound_enabled = False
         
         # Создаем генератор звуков только если звук включен
