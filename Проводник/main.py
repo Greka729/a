@@ -4,6 +4,7 @@ import platform
 import subprocess
 import shutil
 import threading
+import json
 from datetime import datetime
 
 import tkinter as tk
@@ -22,9 +23,19 @@ class FileManagerApp:
 		self.master.title("Проводник")
 		self.master.geometry("1000x600")
 
+		# Settings
+		self.settings_path = os.path.join(os.path.expanduser("~"), ".provodnik_settings.json")
+		self._last_entry_count = 0
+
 		# Theming
 		self.current_theme = "light"  # light | dark
 		self.style = ttk.Style(self.master)
+		# Defaults (can be overridden by settings)
+		self.show_hidden = False
+		self.sort_by = "name"
+		self.sort_reverse = False
+		self.view_mode = tk.StringVar(value="details")
+		self._load_settings_safe()
 		self._init_style()
 
 		self.current_path = self._get_initial_path()
@@ -33,12 +44,13 @@ class FileManagerApp:
 		self.path_history: list[str] = [self.current_path]
 		self.back_stack: list[str] = []
 		self.forward_stack: list[str] = []
-		self.show_hidden = False
-		self.sort_by = "name"  # name | type | size | modified
-		self.sort_reverse = False
 
 		self._build_ui()
 		self._populate_listing(self.current_path)
+		try:
+			self.master.protocol("WM_DELETE_WINDOW", self._on_close)
+		except Exception:
+			pass
 
 	def _get_initial_path(self) -> str:
 		try:
@@ -177,7 +189,6 @@ class FileManagerApp:
 		# View mode controls
 		view_bar = ttk.Frame(tree_container)
 		view_bar.grid(row=0, column=0, sticky="ew", columnspan=2)
-		self.view_mode = tk.StringVar(value="details")
 		for label, mode in (("Details","details"),("Icons","icons"),("Tiles","tiles")):
 			b = ttk.Radiobutton(view_bar, text=label, value=mode, variable=self.view_mode, command=self._on_view_mode_change)
 			b.pack(side=tk.LEFT, padx=(0,6))
@@ -215,12 +226,16 @@ class FileManagerApp:
 		self.tree.bind("<Double-1>", self._on_double_click)
 		self.tree.bind("<Return>", self._on_enter)
 		self.tree.bind("<Button-3>", self._show_context_menu)
-		self.tree.bind("<<TreeviewSelect>>", lambda e: self._update_preview())
+		self.tree.bind("<<TreeviewSelect>>", self._on_select_change)
 		self.master.bind("<Alt-Left>", lambda e: self._on_back())
 		self.master.bind("<Alt-Right>", lambda e: self._on_forward())
 		self.master.bind("<F2>", lambda e: self._rename_selected())
 		self.master.bind("<Delete>", lambda e: self._delete_selected())
 		self.master.bind("<F5>", lambda e: self._on_refresh())
+		self.master.bind("<Control-h>", lambda e: self._toggle_hidden_hotkey())
+		self.master.bind("<Control-H>", lambda e: self._toggle_hidden_hotkey())
+		self.master.bind("<Control-F>", lambda e: self.search_entry.focus_set())
+		self.master.bind("<Control-Shift-C>", lambda e: self._copy_path_to_clipboard())
 
 		# Row tags for zebra striping
 		self.tree.tag_configure('odd', background=self._alt_row_color())
@@ -233,6 +248,63 @@ class FileManagerApp:
 
 		# Context menu
 		self._build_context_menu()
+
+	def _on_close(self) -> None:
+		try:
+			self._save_settings_safe()
+		except Exception:
+			pass
+		self.master.destroy()
+
+	def _settings_default(self) -> dict:
+		return {
+			"theme": self.current_theme,
+			"geometry": self.master.winfo_geometry(),
+			"last_path": self.current_path,
+			"view_mode": self.view_mode.get() if isinstance(self.view_mode, tk.StringVar) else "details",
+			"show_hidden": bool(self.show_hidden),
+			"sort_by": self.sort_by,
+			"sort_reverse": self.sort_reverse,
+		}
+
+	def _load_settings_safe(self) -> None:
+		try:
+			if os.path.exists(self.settings_path):
+				with open(self.settings_path, "r", encoding="utf-8") as f:
+					cfg = json.load(f)
+				# Apply theme early
+				if isinstance(cfg.get("theme"), str):
+					self.current_theme = cfg.get("theme") or self.current_theme
+				# Apply geometry early
+				if isinstance(cfg.get("geometry"), str):
+					try:
+						self.master.geometry(cfg["geometry"])  # may raise on invalid
+					except Exception:
+						pass
+				# Apply other settings
+				if isinstance(cfg.get("view_mode"), str):
+					try:
+						self.view_mode.set(cfg["view_mode"])  # type: ignore[attr-defined]
+					except Exception:
+						pass
+				if isinstance(cfg.get("show_hidden"), bool):
+					self.show_hidden = cfg["show_hidden"]
+				if isinstance(cfg.get("sort_by"), str):
+					self.sort_by = cfg["sort_by"]
+				if isinstance(cfg.get("sort_reverse"), bool):
+					self.sort_reverse = cfg["sort_reverse"]
+				if isinstance(cfg.get("last_path"), str) and os.path.isdir(cfg["last_path"]):
+					self.current_path = cfg["last_path"]
+		except Exception:
+			pass
+
+	def _save_settings_safe(self) -> None:
+		try:
+			cfg = self._settings_default()
+			with open(self.settings_path, "w", encoding="utf-8") as f:
+				json.dump(cfg, f, ensure_ascii=False, indent=2)
+		except Exception:
+			pass
 
 	def _get_selected_names(self) -> list:
 		selected = self.tree.selection()
@@ -464,6 +536,7 @@ class FileManagerApp:
 				else:  # tiles
 					self.tree.insert("", tk.END, text=f"{name}", values=(type_name, size_display, ""), image=icon, tags=("odd",) if idx % 2 else ())
 
+			self._last_entry_count = len(entries)
 			self._set_status(self._status_text(len(entries)))
 			self._update_preview()
 		except PermissionError:
@@ -799,6 +872,13 @@ class FileManagerApp:
 		self.show_hidden = bool(self.hidden_var.get())
 		self._populate_listing(self.current_path)
 
+	def _toggle_hidden_hotkey(self) -> None:
+		try:
+			self.hidden_var.set(not self.hidden_var.get())
+			self._toggle_hidden()
+		except Exception:
+			pass
+
 	def _on_sort(self, key: str) -> None:
 		if self.sort_by == key:
 			self.sort_reverse = not self.sort_reverse
@@ -828,6 +908,34 @@ class FileManagerApp:
 			self.tree.column("modified", width=0)
 			self.style.configure("Treeview", rowheight=28)
 		self._populate_listing(self.current_path)
+		self._save_settings_safe()
+
+	def _on_select_change(self, event=None) -> None:
+		try:
+			self._update_preview()
+			self._update_selection_status()
+		except Exception:
+			pass
+
+	def _update_selection_status(self) -> None:
+		try:
+			sel = self.tree.selection()
+			if not sel:
+				self._set_status(self._status_text(self._last_entry_count))
+				return
+			num = len(sel)
+			total_size = 0
+			for iid in sel:
+				name = self.tree.item(iid, "text")
+				full = os.path.join(self.current_path, name)
+				try:
+					if os.path.isfile(full):
+						total_size += os.path.getsize(full)
+				except Exception:
+					pass
+			self._set_status(f"{num} selected • {self._format_size(total_size)}")
+		except Exception:
+			pass
 
 	def _show_context_menu(self, event) -> None:
 		try:
@@ -848,7 +956,9 @@ class FileManagerApp:
 		self.ctx_menu.add_command(label="Delete", command=self._delete_selected)
 		self.ctx_menu.add_separator()
 		self.ctx_menu.add_command(label="Copy path", command=self._copy_path_to_clipboard)
+		self.ctx_menu.add_command(label="Copy name", command=self._copy_name_to_clipboard)
 		self.ctx_menu.add_command(label="Reveal in Explorer", command=self._reveal_in_explorer)
+		self.ctx_menu.add_command(label="Open Terminal here", command=self._open_terminal_here)
 		self.ctx_menu.add_separator()
 		self.ctx_menu.add_command(label="New Folder", command=self._create_folder)
 		self.ctx_menu.add_command(label="New File", command=self._create_file)
@@ -874,7 +984,9 @@ class FileManagerApp:
 		set_state("Rename", one)
 		set_state("Delete", nonempty)
 		set_state("Copy path", one or nonempty)
+		set_state("Copy name", one)
 		set_state("Reveal in Explorer", one)
+		set_state("Open Terminal here", True)
 		set_state("Copy To...", nonempty)
 		set_state("Move To...", nonempty)
 
@@ -896,6 +1008,37 @@ class FileManagerApp:
 				paths.append(os.path.join(self.current_path, name))
 			self.master.clipboard_clear()
 			self.master.clipboard_append("\n".join(paths))
+		except Exception:
+			pass
+
+	def _copy_name_to_clipboard(self) -> None:
+		try:
+			sel = self.tree.selection()
+			if not sel:
+				return
+			names = [self.tree.item(i, "text") for i in sel]
+			self.master.clipboard_clear()
+			self.master.clipboard_append("\n".join(names))
+		except Exception:
+			pass
+
+	def _open_terminal_here(self) -> None:
+		try:
+			path = self.current_path
+			if self.tree.selection():
+				name = self.tree.item(self.tree.selection()[0], "text")
+				cand = os.path.join(self.current_path, name)
+				if os.path.isdir(cand):
+					path = cand
+			if platform.system() == "Windows":
+				try:
+					subprocess.Popen(["wt.exe", "-d", path])
+				except Exception:
+					subprocess.Popen(["cmd.exe", "/K", f"cd /d {path}"])
+			elif platform.system() == "Darwin":
+				subprocess.Popen(["open", "-a", "Terminal", path])
+			else:
+				subprocess.Popen(["x-terminal-emulator"], cwd=path)
 		except Exception:
 			pass
 
@@ -1110,6 +1253,7 @@ class FileManagerApp:
 		self._apply_theme()
 		# Force redraw of current listing to refresh zebra striping
 		self._populate_listing(self.current_path)
+		self._save_settings_safe()
 
 	def _ask_directory(self, title: str, initialdir: str | None = None) -> str | None:
 		current_dir = os.path.abspath(initialdir or self.current_path)
